@@ -1,24 +1,30 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import pyaudio
 import queue
-import socket
-import sys
 import threading
-import wave
+import time
 
 
 class Recorder:
-    def __init__(self, chunk: int = 1024, channels: int = 1, rate: int = 44100):
+    def __init__(
+        self,
+        chunk: int = 1024,
+        channels: int = 1,
+        rate: int = 44100,
+    ):
+        self.stop_event = threading.Event()
         self.chunk = chunk
         self.channels = channels
         self.rate = rate
         self.frames = queue.Queue()
         self.audio = pyaudio.PyAudio()
-        self.stop_event = threading.Event()
         self.stream = None
+        self.duration = 0
 
     def start_recording(self):
+        """
+        audio producer (recorder)
+        """
+        self.stop_event.clear()
         self.stream = self.audio.open(
             format=pyaudio.paInt16,
             channels=self.channels,
@@ -27,30 +33,14 @@ class Recorder:
             frames_per_buffer=self.chunk,
         )
         print("Recording started")
-        threading.Thread(target=self.broadcast_frames).start()
         while not self.stop_event.is_set():
             data = self.stream.read(self.chunk)
             self.frames.put(data)
+        self.stream.stop_stream()
 
     def stop_recording(self):
         self.stop_event.set()
         print("Recording stopped")
-
-    def broadcast_frames(self):
-        # Create a TCP/IP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Connect the socket to the port where the server is listening
-        server_address = ("localhost", 10000)
-        sock.connect(server_address)
-
-        while not self.stop_event.is_set():
-            if not self.frames.empty():
-                data = self.frames.get()
-                sock.send(data)
-
-        # Close the socket
-        sock.close()
 
         # signal = np.hstack(
         #     [
