@@ -1,11 +1,11 @@
 import tkinter as tk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import time
 import threading
+import logging
 
 from collections import deque
 
@@ -23,6 +23,7 @@ class DataCollector:
 
 class AudioGUI:
     def __init__(self, master: tk.Tk):
+        logging.basicConfig(level=logging.INFO)
         self.master = master
         # Bind the window's close event to the cleanup method
         self.master.protocol("WM_DELETE_WINDOW", self.close)
@@ -43,7 +44,7 @@ class AudioGUI:
         self.close_button.pack()
 
         # Create a figure for the plot
-        self.fig = Figure(figsize=(5, 4), dpi=200)
+        self.fig = Figure(figsize=(5, 4), dpi=300)
         self.ax = self.fig.add_subplot(111)
 
         # Add a grid
@@ -80,7 +81,7 @@ class AudioGUI:
                 )
                 self.recording_thread.start()
         except Exception as e:
-            print(f"Error starting recording: {e}")
+            logging.error(f"Error starting recording: {e}")
         while self.recorder.frames.empty():
             time.sleep(0.1)
         # Start broadcasting thread if it's not already running
@@ -94,7 +95,7 @@ class AudioGUI:
                 )
                 self.broadcasting_thread.start()
         except Exception as e:
-            print(f"Error starting broadcasting: {e}")
+            logging.error(f"Error starting broadcasting: {e}")
         # Start the animation
         self.ani = animation.FuncAnimation(
             self.fig,
@@ -104,6 +105,7 @@ class AudioGUI:
             cache_frame_data=False,
             save_count=self.recorder.chunk,
         )
+        # self.ani._resize_id = None
 
     def stop(self):
         # Stop recording
@@ -117,18 +119,15 @@ class AudioGUI:
         self.data_collector.data.clear()
 
     def close(self):
-        self.data_collector.data.clear()
         # Stop all recording and broadcasting threads
-        self.recorder.stop_recording()
-        self.broadcaster.stop_broadcasting()
-        # Join the threads if they exist
-        if hasattr(self, "recording_thread") and self.recording_thread is not None:
+        logging.info("Closed all threads and destroyed window")
+        if hasattr(self, "recording_thread") and self.recording_thread.is_alive():
+            self.recorder.stop_recording()
             self.recording_thread.join()
-        if (
-            hasattr(self, "broadcasting_thread")
-            and self.broadcasting_thread is not None
-        ):
+        if hasattr(self, "broadcasting_thread") and self.broadcasting_thread.is_alive():
+            self.broadcaster.stop_broadcasting()
             self.broadcasting_thread.join()
+        self.data_collector.data.clear()
         # Destroy the window
         self.master.destroy()
 
