@@ -59,7 +59,7 @@ class AudioGUI:
         self.ax.set_ylim(-32768, 32767)  # 16-bit audio ranges from -32768 to 32767
 
         # Set up the x-axis and y-axis labels
-        self.ax.set_xlabel("Time (ms)")
+        self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Amplitude")
         self.ax.set_title("Real-time Audio Signal")
         self.fig.tight_layout()
