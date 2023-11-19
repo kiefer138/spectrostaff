@@ -4,6 +4,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+import time
 import threading
 
 from collections import deque
@@ -58,10 +59,10 @@ class AudioGUI:
         self.ax.set_ylim(-32768, 32767)  # 16-bit audio ranges from -32768 to 32767
 
         # Set up the x-axis and y-axis labels
-        self.ax.set_xlabel("Time [s]")
+        self.ax.set_xlabel("Time (ms)")
         self.ax.set_ylabel("Amplitude")
         self.ax.set_title("Real-time Audio Signal")
-
+        self.fig.tight_layout()
         # Create a canvas and add it to the window
         self.canvas = FigureCanvasTkAgg(self.fig, master=master)
         self.canvas.draw()
@@ -80,7 +81,8 @@ class AudioGUI:
                 self.recording_thread.start()
         except Exception as e:
             print(f"Error starting recording: {e}")
-
+        while self.recorder.frames.empty():
+            time.sleep(0.1)
         # Start broadcasting thread if it's not already running
         try:
             if (
@@ -95,7 +97,12 @@ class AudioGUI:
             print(f"Error starting broadcasting: {e}")
         # Start the animation
         self.ani = animation.FuncAnimation(
-            self.fig, self.plot_audio_signal, interval=100, blit=True
+            self.fig,
+            self.plot_audio_signal,
+            interval=100,
+            blit=True,
+            cache_frame_data=False,
+            save_count=self.recorder.chunk,
         )
 
     def stop(self):
@@ -103,7 +110,8 @@ class AudioGUI:
         self.recorder.stop_recording()
 
         # Stop the animation
-        self.ani.event_source.stop()
+        if hasattr(self, "ani"):
+            self.ani.event_source.stop()
 
     def close(self):
         # Stop all recording and broadcasting threads
@@ -123,9 +131,15 @@ class AudioGUI:
     def plot_audio_signal(self, i=None):
         # Convert the collected data to a numpy array
         audio_data = np.frombuffer(b"".join(self.data_collector.data), dtype=np.int16)
-        # start = time.time()
-        time_data = np.array([i * self.recorder.chunk / self.recorder.rate for i in range(len(audio_data))])
-        
+        N = self.recorder.rate
+        audio_data = audio_data[-N:]
+        time_data = np.array(
+            [
+                i * self.recorder.chunk / self.recorder.rate
+                for i in range(len(audio_data))
+            ]
+        )
+
         # Update the line data
         self.line.set_data(time_data, audio_data)
 

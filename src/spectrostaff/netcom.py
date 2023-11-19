@@ -17,9 +17,11 @@ class Broadcaster:
     def __init__(self):
         self.stop_event = threading.Event()
         self.listeners: List[Listener] = []
+        self.lock = threading.Lock()
 
     def register(self, listener: Listener):
-        self.listeners.append(listener)
+        with self.lock:
+            self.listeners.append(listener)
 
     def broadcast(self, data_queue: queue.Queue):
         """
@@ -29,12 +31,14 @@ class Broadcaster:
         print("Broadcasting started")
         while not self.stop_event.is_set():
             try:
-                data = data_queue.get_nowait()
+                data = data_queue.get(timeout=1)  # Blocks until data is available
+                with self.lock:
+                    for listener in self.listeners:
+                        listener.receive_data(data)
             except queue.Empty:
-                continue
-            if data:
-                for listener in self.listeners:
-                    listener.receive_data(data)
+                break
+            except Exception as e:
+                print(f"Error broadcasting data: {e}")
 
     def stop_broadcasting(self):
         self.stop_event.set()
