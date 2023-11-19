@@ -56,7 +56,7 @@ class AudioGUI:
         self.ax.set_xlim(
             0, self.recorder.chunk / self.recorder.rate
         )  # chunk is the number of data points to display at a time
-        self.ax.set_ylim(-32768, 32767)  # 16-bit audio ranges from -32768 to 32767
+        self.ax.set_ylim(-12768, 12767)  # 16-bit audio ranges from -32768 to 32767
 
         # Set up the x-axis and y-axis labels
         self.ax.set_xlabel("Time (s)")
@@ -112,8 +112,12 @@ class AudioGUI:
         # Stop the animation
         if hasattr(self, "ani"):
             self.ani.event_source.stop()
+            del self.ani
+
+        self.data_collector.data.clear()
 
     def close(self):
+        self.data_collector.data.clear()
         # Stop all recording and broadcasting threads
         self.recorder.stop_recording()
         self.broadcaster.stop_broadcasting()
@@ -135,7 +139,7 @@ class AudioGUI:
         audio_data = audio_data[-N:]
         time_data = np.array(
             [
-                i * self.recorder.chunk / self.recorder.rate
+                i * self.recorder.chunk / (self.recorder.rate * 1000)
                 for i in range(len(audio_data))
             ]
         )
