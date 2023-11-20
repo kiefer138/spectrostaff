@@ -24,8 +24,6 @@ class Recorder:
         frames (queue.Queue): A queue to store the audio frames.
         audio (pyaudio.PyAudio): The PyAudio object.
         stream (Optional[pyaudio.Stream]): The audio stream.
-        duration (int): The duration of the recording.
-        lock (threading.Lock): A lock to ensure thread-safety when modifying the duration.
 
     Methods:
         start_recording(): Starts recording audio.
@@ -67,15 +65,6 @@ class Recorder:
 
         # Audio stream
         self.stream: Optional[pyaudio.Stream] = None
-
-        # Duration of the recording
-        self.duration = 0
-
-        # Lock to ensure thread-safety when modifying the duration
-        self.lock = threading.Lock()
-
-        # Set the logging level to INFO
-        logging.basicConfig(level=logging.INFO)
 
     def start_recording(self) -> None:
         """
