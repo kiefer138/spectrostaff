@@ -1,6 +1,6 @@
 # Standard library imports
 import threading
-from unittest.mock import patch, create_autospec, MagicMock
+from unittest.mock import patch, MagicMock
 
 # Related third party imports
 import pytest

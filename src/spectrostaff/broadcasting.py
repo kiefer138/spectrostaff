@@ -5,11 +5,8 @@ import threading
 import logging
 
 # Related third party imports
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, List
-
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 
 
 class Broadcaster:
@@ -118,33 +115,36 @@ class Broadcaster:
 
 class Listener:
     """
-    The Listener class is responsible for receiving data and triggering a callback function.
+    A class that listens for data and processes it in a separate thread.
 
-    This class uses a separate thread to run the callback function, allowing it to process data asynchronously.
+    The Listener class uses a ThreadPoolExecutor to process incoming data in separate threads.
+    The data processing function is provided as a callback function when the Listener is created.
 
     Attributes:
-        data_callback (Callable[[Any], None]): The callback function to run when data is received.
-
-    Methods:
-        receive_data(data: Any): Receives data and starts a new thread to run the callback function with the received data.
+        data_callback (Callable[[Any], None]): The callback function that processes the data.
+        executor (ThreadPoolExecutor): The executor that runs the callback function in a separate thread.
     """
 
-    def __init__(self, data_callback: Callable[[Any], None]):
+    def __init__(self, data_callback: Callable[[Any], None], max_workers: int = 100):
         """
-        Initializes a new instance of the Listener class.
+        Initializes a new Listener object.
 
         Args:
-            data_callback (Callable[[Any], None]): The callback function to run when data is received.
+            data_callback (Callable[[Any], None]): The callback function that processes the data.
+            max_workers (int, optional): The maximum number of worker threads in the ThreadPoolExecutor. Defaults to 100.
         """
-        # The callback function to run when data is received
         self.data_callback = data_callback
 
     def receive_data(self, data: Any) -> None:
         """
-        Receives data and starts a new thread to run the callback function with the received data.
+        Receives data and submits it to the executor for processing.
 
         Args:
-            data (Any): The data to process.
+            data (Any): The data to be processed.
         """
-        # Start a new thread to run the callback function with the received data
-        threading.Thread(target=self.data_callback, args=(data,)).start()
+        try:
+            # Submit the data to the executor for processing
+            self.data_callback(data)
+        except Exception as e:
+            # If an error occurs, print it
+            print(f"An error occurred: {e}")
