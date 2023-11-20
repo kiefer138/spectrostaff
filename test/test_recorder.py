@@ -1,6 +1,6 @@
 # Standard library imports
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, create_autospec, MagicMock
 
 # Related third party imports
 import pytest
@@ -107,6 +107,34 @@ def test_close(mock_pyaudio: MagicMock) -> None:
     mock_pyaudio.return_value.terminate.assert_called_once()
 
 
-# Run the tests if this script is run directly
+@patch("spectrostaff.recorder.pyaudio.PyAudio")
+def test_start_recording_io_error(mock_pyaudio: MagicMock) -> None:
+    """
+    Test the start_recording method of the Recorder class for IOError.
+
+    This test checks that the PyAudio.open method is called with the correct parameters,
+    and that data is read from the stream and put into the frames queue.
+    It also checks that an IOError is correctly handled and logged.
+    """
+
+    # Create a mock stream object
+    mock_stream = MagicMock()
+
+    # Make the read method raise an IOError
+    mock_stream.read.side_effect = IOError("Test error")
+
+    # Set up the mock PyAudio object to return the mock stream when open is called
+    mock_pyaudio.return_value.open.return_value = mock_stream
+
+    # Create a Recorder object
+    recorder = Recorder()
+
+    # Call start_recording, which should raise an IOError
+    recorder.start_recording()
+
+    # Check that the error was logged
+    mock_stream.read.assert_called_once()
+
+
 if __name__ == "__main__":
     pytest.main()

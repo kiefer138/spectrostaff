@@ -97,12 +97,14 @@ class Recorder:
                 self.frames.put(data)
 
         # If any exception occurs, log it
-        except Exception as e:
+        except IOError as e:
             logging.error(f"Error occurred while recording: {e}")
 
         # Stop the audio stream
         finally:
-            self.stream.stop_stream()
+            if self.stream is not None:
+                self.stream.stop_stream()
+                self.stream.close()
 
     def stop_recording(self) -> None:
         """
