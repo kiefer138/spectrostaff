@@ -5,7 +5,6 @@ import threading
 import logging
 
 # Related third party imports
-from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, List
 
 
@@ -54,9 +53,9 @@ class Broadcaster:
 
     def broadcast(self, data_queue: queue.Queue):
         """
-        Broadcasts data from the provided queue to all registered listeners.
+        Broadcasts data from the provided queue to all registered listeners in a separate thread.
 
-        This method runs in a loop until the stop_event is set or the data_queue is empty.
+        This method should be run in a separate thread, and runs in a loop until the stop_event is set or the data_queue is empty.
         In each iteration of the loop, it gets data from the queue and sends it to each listener.
 
         Args:
@@ -125,7 +124,7 @@ class Listener:
         executor (ThreadPoolExecutor): The executor that runs the callback function in a separate thread.
     """
 
-    def __init__(self, data_callback: Callable[[Any], None], max_workers: int = 100):
+    def __init__(self, data_callback: Callable[[Any], None]):
         """
         Initializes a new Listener object.
 
@@ -147,4 +146,4 @@ class Listener:
             self.data_callback(data)
         except Exception as e:
             # If an error occurs, print it
-            print(f"An error occurred: {e}")
+            logging.error(f"An error occurred: {e}")

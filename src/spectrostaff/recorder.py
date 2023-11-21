@@ -58,7 +58,7 @@ class Recorder:
         self.rate = rate
 
         # Queue to store the audio frames
-        self.frames = queue.Queue()
+        self.frames: queue.Queue = queue.Queue()
 
         # PyAudio object
         self.audio = pyaudio.PyAudio()
