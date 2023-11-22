@@ -1,12 +1,13 @@
 # Standard library imports
 from __future__ import annotations
 import queue
+from collections import deque
 from typing import Optional
 
 # Related third party imports
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QMutex, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QWidget
 
@@ -17,34 +18,41 @@ from spectrostaff.recorder import Recorder
 
 class DataCollector:
     """
-    A class that collects and stores a fixed amount of data.
+    A class that collects and stores a fixed amount of data in a thread-safe manner.
 
     Attributes:
         data (deque): A deque to store the collected data.
+        lock (QMutex): A mutex to ensure thread-safety when modifying the deque.
     """
 
-    def __init__(self, max_length: int = 100):
+    def __init__(self, max_length: int = 1024):
         """
         Initializes a new DataCollector object.
 
         Args:
-            max_length (int, optional): The maximum size of the queue. Defaults to 100.
+            max_length (int, optional): The maximum size of the deque. Defaults to 100.
         """
-        # Initialize a queue with a fixed maximum size
-        self.data: queue.Queue = queue.Queue(maxsize=max_length)
+        # Initialize a deque with a fixed maximum size
+        self.data: deque[np.ndarray] = deque(maxlen=max_length)
+        # Initialize a mutex for thread-safety
+        self.lock = QMutex()
 
     def data_callback(self, data: np.ndarray) -> None:
         """
-        Adds new data to the queue.
+        Adds new data to the deque in a thread-safe manner.
 
         Args:
             data (np.ndarray): The data to add.
         """
-        # If the queue is full, remove the oldest item
-        if self.data.full():
-            self.data.get()
-        # Add the new data to the queue
-        self.data.put(data)
+        # Acquire the lock before modifying the deque
+        self.lock.lock()
+        try:
+            # Add the new data to the deque
+            # If the deque is full, the oldest item is automatically removed
+            self.data.append(data)
+        finally:
+            # Always release the lock, even if an error occurred
+            self.lock.unlock()
 
 
 class RecorderThread(QThread):
@@ -178,7 +186,7 @@ class Visualizer(QMainWindow):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setLabel("left", "Amplitude")
         self.plot_widget.setLabel("bottom", "Time (s)")
-    
+
         # Get the PlotItem from the PlotWidget
         plot_item = self.plot_widget.getPlotItem()
 
@@ -208,15 +216,15 @@ class Visualizer(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Create an empty array of audio data
-        self.data = np.zeros(1000)
-        sample_rate = 44100  # Hz
-        self.rel_time = np.arange(len(self.data)) / sample_rate  # seconds
+        self.data = np.zeros(self.recorder.rate)
+        self.circular_buffer_index = 0
+        self.rel_time = np.arange(len(self.data)) / self.recorder.rate  # seconds
         self.curve = self.plot_widget.plot(self.rel_time, self.data, pen=(255, 0, 0))
 
         # Create a QTimer
         self.timer = QTimer()
-        # Connect the timeout signal to update_plot_from_data_collector
-        self.timer.timeout.connect(self.update_plot_from_data_collector)
+        # Connect the timeout signal to update_plot
+        self.timer.timeout.connect(self.update_plot)
         # Start the timer with an interval of 100 milliseconds
         self.timer.start(100)
 
@@ -268,52 +276,38 @@ class Visualizer(QMainWindow):
         if self.recorder_thread.isRunning():
             self.recorder_thread.stop()
 
-    def update_plot_from_data_collector(self) -> None:
+    def update_plot(self) -> None:
         """
-        Updates the plot with new audio data from the data collector.
+        Updates the plot with the latest audio data from the data collector.
 
-        This method first gets the data from the data collector.
-        Then, it converts the deque of numpy arrays to a single numpy array.
-        Finally, it updates the plot with this data.
+        This method retrieves new data from the data collector, appends it to the existing data,
+        and then updates the plot with the combined data. If the recorder is not currently recording,
+        the method simply returns without making any changes.
         """
+        # If the recorder is not recording, return without making any changes
         if not self.recorder.recording:
             return
-        # Initialize an empty numpy array to store the data
-        data = np.array([])
 
-        # Get the data from the data collector
-        for _ in range(100):
+        # Convert existing data to a list
+        new_data_list = list(self.data)
+
+        # Retrieve and append new data from the data collector
+        while len(self.data_collector.data) > 0:
             try:
-                new_data = self.data_collector.data.get_nowait()
-                # Append the new data to the existing data
-                data = np.append(data, new_data)
-            except queue.Empty:
+                # Retrieve new data from the data collector
+                new_data = self.data_collector.data.popleft()
+                # Append new data to the list
+                new_data_list.append(new_data)
+            except IndexError:
+                # If an IndexError occurs, break the loop
                 break
 
-        # If there's no new data, use the existing data
-        if data.size == 0:
-            data = self.data
+        # Convert the combined data back to a numpy array
+        # Keep only the last 'self.recorder.rate' samples
+        self.data = np.concatenate(new_data_list, axis=None)[-self.recorder.rate :]
 
-        # Update the plot with this data
-        self.update_plot(data)
-
-    def update_plot(self, data: np.ndarray) -> None:
-        """
-        Updates the plot with new audio data.
-
-        Args:
-            data (np.ndarray): The new audio data.
-        """
-        # Check if the new data array is longer than the existing data array
-        if len(data) > len(self.data):
-            # If it is, truncate the new data array to the length of the existing data array
-            data = data[: len(self.data)]
-        elif len(data) < len(self.data):
-            # If it is shorter, pad the new data array with zeros to the length of the existing data array
-            data = np.pad(data, (0, len(self.data) - len(data)))
-
-        # Update the plot with the new data array
-        self.curve.setData(self.rel_time, data)
+        # Update the plot with the combined data
+        self.curve.setData(self.rel_time, self.data)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """

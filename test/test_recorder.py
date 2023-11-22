@@ -11,6 +11,37 @@ import pyaudio
 from spectrostaff.recorder import Recorder
 
 
+def test_recorder_initialization() -> None:
+    """
+    Test the initialization of the Recorder class.
+
+    This test checks that a Recorder object is properly initialized with the correct default values.
+    """
+    # Create a Recorder object
+    recorder = Recorder()
+
+    # Check that the recording flag is False
+    assert recorder.recording == False
+
+    # Check that the chunk size is 1024
+    assert recorder.chunk == 1024
+
+    # Check that the number of channels is 1
+    assert recorder.channels == 1
+
+    # Check that the rate is 44100
+    assert recorder.rate == 44100
+
+    # Check that the frames queue is empty
+    assert recorder.frames.empty()
+
+    # Check that the audio object is a PyAudio instance
+    assert isinstance(recorder.audio, pyaudio.PyAudio)
+
+    # Check that the stream is None
+    assert recorder.stream is None
+
+
 @patch("spectrostaff.recorder.pyaudio.PyAudio")
 def test_start_recording(mock_pyaudio: MagicMock) -> None:
     """

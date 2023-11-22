@@ -1,88 +1,42 @@
 # Standard library imports
-from queue import Queue
-from threading import Thread
+import queue
+import threading
 from unittest.mock import MagicMock
 
 # Related third party imports
 import pytest
+import numpy as np
 from _pytest.logging import LogCaptureFixture
+from PyQt6.QtTest import QSignalSpy
 
 # Local application/library specific imports
 from spectrostaff.broadcasting import Broadcaster, Listener
 
 
+def test_broadcaster_initialization() -> None:
+    """
+    Test the initialization of the Broadcaster class.
+
+    This test checks that a Broadcaster object is properly initialized with the correct default values.
+    """
+    # Create a Broadcaster object
+    broadcaster = Broadcaster()
+
+    # Check that the broadcasting flag is False
+    assert broadcaster.broadcasting == False
+
+    # Check that the listeners list is empty
+    assert broadcaster.listeners == []
+
+    # Check that the max_queue_size is 1000
+    assert broadcaster.max_queue_size == 1000
+
+
 def test_register() -> None:
     """
-    Test that a listener can be registered to the broadcaster.
-    """
-    broadcaster = Broadcaster()
-    listener = Listener(MagicMock())
-    broadcaster.register(listener)
-    # Check that the listener is in the broadcaster's list of listeners
-    assert listener in broadcaster.listeners
+    Test the register method of the Broadcaster class.
 
-
-def test_broadcast() -> None:
-    """
-    Test that data is broadcasted to all registered listeners.
-    """
-    broadcaster = Broadcaster()
-    listener1 = Listener(MagicMock())
-    listener2 = Listener(MagicMock())
-    broadcaster.register(listener1)
-    broadcaster.register(listener2)
-
-    data_queue = Queue()
-    data_queue.put("Test data")
-
-    # Start broadcasting in a separate thread
-    broadcast_thread = Thread(target=broadcaster.broadcast, args=(data_queue,))
-    broadcast_thread.start()
-
-    # Give the broadcast thread some time to process the data
-    broadcast_thread.join(timeout=0.1)
-
-    # Check that each listener received the broadcasted data
-    listener1.data_callback.assert_called_once_with("Test data")
-    listener2.data_callback.assert_called_once_with("Test data")
-
-    # Stop broadcasting and wait for the broadcast thread to finish
-    broadcaster.stop_broadcasting()
-    broadcast_thread.join()
-
-
-def test_stop_broadcasting() -> None:
-    """
-    Test that broadcasting can be stopped.
-    """
-    broadcaster = Broadcaster()
-    data_queue = Queue()
-    data_queue.put("Test data")
-
-    # Start broadcasting in a separate thread
-    broadcast_thread = Thread(target=broadcaster.broadcast, args=(data_queue,))
-    broadcast_thread.start()
-
-    # Stop broadcasting
-    broadcaster.stop_broadcasting()
-
-    # Wait for the broadcast thread to finish
-    broadcast_thread.join()
-
-    # Check that the stop_event was cleared and the broadcast thread is no longer alive
-    assert not broadcaster.stop_event.is_set()
-    assert not broadcast_thread.is_alive()
-
-
-def test_receive_data(caplog: LogCaptureFixture) -> None:
-    """
-    Test the receive_data method of the Listener class.
-
-    This test checks that the receive_data method correctly calls the callback function
-    and logs an error message when the callback function raises an exception.
-
-    Args:
-        caplog (LogCaptureFixture): Pytest fixture to capture log messages.
+    This test checks that a Listener object is properly registered.
     """
     # Create a mock callback function
     mock_callback = MagicMock()
@@ -90,23 +44,135 @@ def test_receive_data(caplog: LogCaptureFixture) -> None:
     # Create a Listener object with the mock callback function
     listener = Listener(mock_callback)
 
-    # Define some test data
-    test_data = "Test data"
+    # Create a Broadcaster object
+    broadcaster = Broadcaster()
 
-    # Call receive_data with the test data
-    listener.receive_data(test_data)
+    # Register the listener
+    broadcaster.register(listener)
 
-    # Check that the mock callback function was called once with the test data
-    mock_callback.assert_called_once_with(test_data)
+    # Check that the listener is in the broadcaster's list of listeners
+    assert listener in broadcaster.listeners
 
-    # Set the mock callback function to raise an exception when called
-    mock_callback.side_effect = Exception("Test exception")
 
-    # Call receive_data again with the test data
-    listener.receive_data(test_data)
+def test_unregister() -> None:
+    """
+    Test the unregister method of the Broadcaster class.
 
-    # Check that the correct error message was logged
-    assert f"An error occurred: Test exception" in caplog.text
+    This test checks that a Listener object is properly unregistered.
+    """
+    # Create a mock callback function
+    mock_callback = MagicMock()
+
+    # Create a Listener object with the mock callback function
+    listener = Listener(mock_callback)
+
+    # Create a Broadcaster object and register the listener
+    broadcaster = Broadcaster()
+    broadcaster.register(listener)
+
+    # Unregister the listener
+    broadcaster.unregister(listener)
+
+    # Check that the listener is not in the broadcaster's list of listeners
+    assert listener not in broadcaster.listeners
+
+
+def test_broadcast() -> None:
+    """
+    Test the broadcast method of the Broadcaster class.
+
+    This test checks that if broadcast is called with a queue containing some data, the method broadcasts the data to all registered listeners.
+    """
+    # Create a Broadcaster object
+    broadcaster = Broadcaster()
+
+    # Create a QSignalSpy to spy on the data_signal of the broadcaster
+    spy = QSignalSpy(broadcaster.data_signal)
+
+    # Create a queue and put some mock data in it
+    data_queue = queue.Queue()
+    mock_data = np.array([1, 2, 3, 4, 5], dtype=np.int16)
+    data_queue.put(mock_data.tobytes())
+
+    # Create a thread to run the broadcast method
+    broadcast_thread = threading.Thread(
+        target=broadcaster.broadcast, args=(data_queue,)
+    )
+
+    # Start the thread
+    broadcast_thread.start()
+
+    # Wait for the thread to finish
+    broadcast_thread.join()
+
+    # Check that the data_signal was emitted once
+    assert len(spy) == 1
+
+    # Check that the data_signal was emitted with the mock data
+    assert np.array_equal(spy[0][0], mock_data)
+
+
+def test_stop_broadcasting() -> None:
+    """
+    Test the stop_broadcasting method of the Broadcaster class.
+
+    This test checks that if stop_broadcasting is called, the broadcasting attribute is set to False.
+    """
+    # Create a Broadcaster object
+    broadcaster = Broadcaster()
+
+    # Set the broadcasting attribute to True
+    broadcaster.broadcasting = True
+
+    # Call the stop_broadcasting method
+    broadcaster.stop_broadcasting()
+
+    # Check that the broadcasting attribute is False
+    assert broadcaster.broadcasting == False
+
+
+def test_receive_data() -> None:
+    """
+    Test the receive_data method of the Listener class.
+
+    This test checks that if receive_data is called with some data, the method processes the data using the callback function.
+    """
+    # Create a mock callback function
+    mock_callback = MagicMock()
+
+    # Create a Listener object with the mock callback function
+    listener = Listener(mock_callback)
+
+    # Create some mock data
+    mock_data = np.array([1, 2, 3, 4, 5], dtype=np.int16)
+
+    # Call the receive_data method with the mock data
+    listener.receive_data(mock_data)
+
+    # Check that the mock callback function was called with the mock data
+    mock_callback.assert_called_once_with(mock_data)
+
+
+def test_receive_data_empty_array() -> None:
+    """
+    Test the receive_data method of the Listener class.
+
+    This test checks that if receive_data is called with an empty numpy array, the method does not call the callback function.
+    """
+    # Create a mock callback function
+    mock_callback = MagicMock()
+
+    # Create a Listener object with the mock callback function
+    listener = Listener(mock_callback)
+
+    # Create an empty numpy array
+    empty_data = np.array([], dtype=np.int16)
+
+    # Call the receive_data method with the empty array
+    listener.receive_data(empty_data)
+
+    # Check that the mock callback function was not called
+    mock_callback.assert_not_called()
 
 
 if __name__ == "__main__":
