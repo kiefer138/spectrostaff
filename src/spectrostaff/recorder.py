@@ -61,6 +61,7 @@ class Recorder:
         self.rate = rate
 
         # Queue to store the audio frames
+        # We use a queue.Queue here because it is thread-safe. This means that multiple threads can add and remove items from the queue without causing any race conditions. This is important because we have multiple threads interacting with this queue: one thread is adding new frames to the queue, and another thread is removing frames from the queue to process them.
         self.frames: queue.Queue = queue.Queue()
 
         # PyAudio object
@@ -75,9 +76,14 @@ class Recorder:
 
         This method runs in a loop until the stop_event is set. In each iteration of the loop, it reads data from the audio stream and puts it into the frames queue.
         """
-        self.recording = True
+        # If already recording, log a message and return
+        if self.recording:
+            logging.info("Recording is already in progress")
+            return
+
         try:
             # Open the audio stream
+            # We use a try/except block here because opening the audio stream can raise an IOError if the requested audio device is unavailable or if the requested settings are not supported by the device.
             self.stream = self.audio.open(
                 format=pyaudio.paInt16,
                 channels=self.channels,
@@ -89,6 +95,9 @@ class Recorder:
             # Log that recording has started
             logging.info("Recording started")
 
+            # Set the recording flag to True
+            self.recording = True
+
             # Run in a loop until the stop event is set
             while self.recording:
                 # Read data from the audio stream
@@ -97,15 +106,19 @@ class Recorder:
                 # Put the data into the frames queue
                 self.frames.put(data)
 
-        # If any exception occurs, log it
+        # If an IOError occurs, log it
+        # An IOError can occur if the requested audio device is unavailable or if the requested settings are not supported by the device.
         except IOError as e:
             logging.error(f"Error occurred while recording: {e}")
 
         # Stop the audio stream
+        # We use a finally block to ensure that the stream is always closed, even if an error occurs. This is important to prevent resource leaks.
         finally:
             if self.stream is not None:
                 self.stream.stop_stream()
                 self.stream.close()
+            self.recording = False  # Set the recording flag to False
+            logging.info("Recording stopped")
 
     def stop_recording(self) -> None:
         """
@@ -116,18 +129,22 @@ class Recorder:
         # Set the stop event to signal the recording thread to stop
         self.recording = False
 
-        # Log that recording has stopped
-        logging.info("Recording stopped")
+        # Log that stop recording was requested
+        logging.info("Stop recording requested")
 
     def close(self) -> None:
         """
         Closes the audio stream and terminates the PyAudio object.
 
-        This method first checks if the audio stream is open. If it is, it closes the stream.
+        This method first checks if a recording is in progress. If it is, it stops the recording and then closes the stream.
         Then, it terminates the PyAudio object to free up any system resources used by it.
 
         Note: This method should be called when you're done using the Recorder object to ensure proper cleanup of resources.
         """
+        # If a recording is in progress, stop it
+        if self.recording:
+            self.stop_recording()
+
         # If the audio stream is open, close it
         if self.stream is not None:
             self.stream.close()
