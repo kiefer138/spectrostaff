@@ -1,10 +1,10 @@
 # Standard library imports
 import logging
 import queue
-import threading
 
 # Related third party imports
 import pyaudio
+from PyQt6.QtCore import pyqtSignal
 
 # Local application/library specific imports
 from typing import Optional
@@ -45,8 +45,11 @@ class Recorder:
             channels (int): The number of channels.
             rate (int): The sampling rate.
         """
-        # Event to signal the recording thread to stop
-        self.stop_event = threading.Event()
+        # Event to signal the broadcaster to start
+        self.recording_started = pyqtSignal()
+
+        # Boolean flag to indicate whether recording is in progress
+        self.recording = False
 
         # The number of audio frames per buffer
         self.chunk = chunk
@@ -72,9 +75,7 @@ class Recorder:
 
         This method runs in a loop until the stop_event is set. In each iteration of the loop, it reads data from the audio stream and puts it into the frames queue.
         """
-        # Clear the stop event to allow recording to start
-        self.stop_event.clear()
-
+        self.recording = True
         try:
             # Open the audio stream
             self.stream = self.audio.open(
@@ -89,7 +90,7 @@ class Recorder:
             logging.info("Recording started")
 
             # Run in a loop until the stop event is set
-            while not self.stop_event.is_set():
+            while self.recording:
                 # Read data from the audio stream
                 data = self.stream.read(self.chunk)
 
@@ -113,7 +114,7 @@ class Recorder:
         This method sets the stop_event, which signals the recording thread to stop.
         """
         # Set the stop event to signal the recording thread to stop
-        self.stop_event.set()
+        self.recording = False
 
         # Log that recording has stopped
         logging.info("Recording stopped")
@@ -122,7 +123,10 @@ class Recorder:
         """
         Closes the audio stream and terminates the PyAudio object.
 
-        If the audio stream is open, it is closed first. Then, the PyAudio object is terminated.
+        This method first checks if the audio stream is open. If it is, it closes the stream.
+        Then, it terminates the PyAudio object to free up any system resources used by it.
+
+        Note: This method should be called when you're done using the Recorder object to ensure proper cleanup of resources.
         """
         # If the audio stream is open, close it
         if self.stream is not None:

@@ -1,158 +1,350 @@
-import tkinter as tk
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.animation as animation
+# Standard library imports
+from __future__ import annotations
+import queue
+from typing import Optional
+
+# Related third party imports
 import numpy as np
-import time
-import threading
-import logging
+import pyqtgraph as pg
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QWidget
 
-from collections import deque
-
-from netcom import Broadcaster, Listener
-from recorder import Recorder
+# Local application/library specific imports
+from spectrostaff.broadcasting import Broadcaster, Listener
+from spectrostaff.recorder import Recorder
 
 
 class DataCollector:
-    def __init__(self, max_length: int):
-        self.data = deque(maxlen=max_length)
+    """
+    A class that collects and stores a fixed amount of data.
 
-    def data_callback(self, data):
-        self.data.append(data)
+    Attributes:
+        data (deque): A deque to store the collected data.
+    """
+
+    def __init__(self, max_length: int = 100):
+        """
+        Initializes a new DataCollector object.
+
+        Args:
+            max_length (int, optional): The maximum size of the queue. Defaults to 100.
+        """
+        # Initialize a queue with a fixed maximum size
+        self.data: queue.Queue = queue.Queue(maxsize=max_length)
+
+    def data_callback(self, data: np.ndarray) -> None:
+        """
+        Adds new data to the queue.
+
+        Args:
+            data (np.ndarray): The data to add.
+        """
+        # If the queue is full, remove the oldest item
+        if self.data.full():
+            self.data.get()
+        # Add the new data to the queue
+        self.data.put(data)
 
 
-class AudioGUI:
-    def __init__(self, master: tk.Tk):
-        logging.basicConfig(level=logging.INFO)
-        self.master = master
-        # Bind the window's close event to the cleanup method
-        self.master.protocol("WM_DELETE_WINDOW", self.close)
-        self.broadcaster = Broadcaster()
+class RecorderThread(QThread):
+    """
+    A class that runs a Recorder in a separate thread.
+
+    Attributes:
+        recorder (Recorder): The Recorder to run.
+    """
+
+    # Define a PyQt signal that will be emitted when recording starts
+    recording_started = pyqtSignal()
+
+    def __init__(self, recorder: Recorder):
+        """
+        Initializes a new RecorderThread object.
+
+        Args:
+            recorder (Recorder): The Recorder to run.
+        """
+        super().__init__()
+        # Store the Recorder
+        self.recorder = recorder
+
+    def run(self) -> None:
+        """
+        Emits the recording_started signal and starts the Recorder.
+        """
+        # Emit the recording_started signal. This signal is connected to the start method of the BroadcasterThread.
+        # When this signal is emitted, it will trigger the start of the BroadcasterThread.
+        self.recording_started.emit()
+
+        # Call the start_recording method of the recorder object. This starts the actual recording process.
+        self.recorder.start_recording()
+
+    def stop(self) -> None:
+        """
+        Stops the RecorderThread.
+        """
+        # Call the stop_recording method of the recorder object.
+        # This should stop the recording process.
+        self.recorder.stop_recording()
+
+        # Wait for the thread to finish.
+        # This is a blocking call which will not return until the thread has completely finished execution.
+        self.wait()
+
+
+class BroadcasterThread(QThread):
+    """
+    A class that runs a Broadcaster in a separate thread.
+
+    Attributes:
+        broadcaster (Broadcaster): The Broadcaster to run.
+        frames (queue.Queue): The queue of frames to broadcast.
+    """
+
+    def __init__(self, broadcaster: Broadcaster, frames: queue.Queue):
+        """
+        Initializes a new BroadcasterThread object.
+
+        Args:
+            broadcaster (Broadcaster): The Broadcaster to run.
+            frames (queue.Queue): The queue of frames to broadcast.
+        """
+        super().__init__()
+        # Store the Broadcaster and the queue of frames
+        self.broadcaster = broadcaster
+        self.frames = frames
+
+    @pyqtSlot()
+    def run(self) -> None:
+        """
+        Starts the Broadcaster.
+
+        This method is automatically called when the thread's start() method is called.
+        It calls the broadcast method of the broadcaster object, passing it the queue of frames.
+        """
+        # Start the Broadcaster
+        self.broadcaster.broadcast(self.frames)
+
+    def stop(self) -> None:
+        """
+        Stops the BroadcasterThread.
+
+        This method stops the broadcasting by calling the stop_broadcasting method of the broadcaster object.
+        It then waits for the thread to finish execution by calling the thread's wait method.
+        """
+        # Stop the broadcasting
+        self.broadcaster.stop_broadcasting()
+        # Wait for the thread to finish execution
+        self.wait()
+
+
+class Visualizer(QMainWindow):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """
+        Initializes a new Visualizer object.
+
+        Args:
+            parent (Optional[QWidget], optional): The parent widget. Defaults to None.
+        """
+        super(Visualizer, self).__init__(parent)
+
+        # Create a DataCollector to collect and store audio data
+        self.data_collector = DataCollector()
+
+        # Create a Recorder to record audio data
         self.recorder = Recorder()
-        self.data_collector = DataCollector(self.recorder.chunk)
 
-        # Create Listener and register it with the Broadcaster
+        # Create a Broadcaster to broadcast audio data
+        self.broadcaster = Broadcaster()
+
+        # Create a Listener to listen for and process audio data
         self.listener = Listener(self.data_collector.data_callback)
         self.broadcaster.register(self.listener)
 
+        # Create a RecorderThread and a BroadcasterThread
+        self.recorder_thread = RecorderThread(self.recorder)
+        self.broadcaster_thread = BroadcasterThread(
+            self.broadcaster, self.recorder.frames
+        )
+
+        # Connect the recording_started signal to the broadcaster thread's start method
+        self.recorder_thread.recording_started.connect(self.broadcaster_thread.start)
+
+        # Connect the data callback to the listener
+        self.broadcaster.data_signal.connect(self.listener.receive_data)
+
+        # Create a PlotWidget to display the audio data
+        self.plot_widget = pg.PlotWidget()
+        self.plot_widget.setLabel("left", "Amplitude")
+        self.plot_widget.setLabel("bottom", "Time (s)")
+    
+        # Get the PlotItem from the PlotWidget
+        plot_item = self.plot_widget.getPlotItem()
+
+        # Show the grid
+        plot_item.showGrid(x=True, y=True)
+
+        # Fix the y-axis range for a typical int16 audio signal
+        plot_item.setRange(yRange=[-32768, 32767])
+
+        self.setCentralWidget(self.plot_widget)
+
         # Create start and stop buttons
-        self.start_button = tk.Button(master, text="Start", command=self.start)
-        self.start_button.pack()
-        self.stop_button = tk.Button(master, text="Stop", command=self.stop)
-        self.stop_button.pack()
-        self.close_button = tk.Button(master, text="Close", command=self.close)
-        self.close_button.pack()
+        self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.start)
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.clicked.connect(self.stop)
 
-        # Create a figure for the plot
-        self.fig = Figure(figsize=(5, 4), dpi=300)
-        self.ax = self.fig.add_subplot(111)
+        # Create a layout and add the plot widget and buttons
+        layout = QVBoxLayout()
+        layout.addWidget(self.plot_widget)
+        layout.addWidget(self.start_button)
+        layout.addWidget(self.stop_button)
 
-        # Add a grid
-        self.ax.grid(True, color="b", linewidth=0.1)
+        # Create a central widget and set the layout
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
 
-        # Initialize the line object for the plot
-        (self.line,) = self.ax.plot([], [], color="magenta", linewidth=0.1)
+        # Create an empty array of audio data
+        self.data = np.zeros(1000)
+        sample_rate = 44100  # Hz
+        self.rel_time = np.arange(len(self.data)) / sample_rate  # seconds
+        self.curve = self.plot_widget.plot(self.rel_time, self.data, pen=(255, 0, 0))
 
-        # Set up the plot
-        self.ax.set_xlim(
-            0, self.recorder.chunk / self.recorder.rate
-        )  # chunk is the number of data points to display at a time
-        self.ax.set_ylim(-12768, 12767)  # 16-bit audio ranges from -32768 to 32767
+        # Create a QTimer
+        self.timer = QTimer()
+        # Connect the timeout signal to update_plot_from_data_collector
+        self.timer.timeout.connect(self.update_plot_from_data_collector)
+        # Start the timer with an interval of 100 milliseconds
+        self.timer.start(100)
 
-        # Set up the x-axis and y-axis labels
-        self.ax.set_xlabel("Time (s)")
-        self.ax.set_ylabel("Amplitude")
-        self.ax.set_title("Real-time Audio Signal")
-        self.fig.tight_layout()
-        # Create a canvas and add it to the window
-        self.canvas = FigureCanvasTkAgg(self.fig, master=master)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    def start(self) -> None:
+        """
+        Starts recording and broadcasting audio data.
 
-    def start(self):
-        # Start recording thread if it's not already running
-        try:
-            if (
-                not hasattr(self, "recording_thread")
-                or not self.recording_thread.is_alive()
-            ):
-                self.recording_thread = threading.Thread(
-                    target=self.recorder.start_recording
-                )
-                self.recording_thread.start()
-        except Exception as e:
-            logging.error(f"Error starting recording: {e}")
-        while self.recorder.frames.empty():
-            time.sleep(0.1)
-        # Start broadcasting thread if it's not already running
-        try:
-            if (
-                not hasattr(self, "broadcasting_thread")
-                or not self.broadcasting_thread.is_alive()
-            ):
-                self.broadcasting_thread = threading.Thread(
-                    target=self.broadcaster.broadcast, args=(self.recorder.frames,)
-                )
-                self.broadcasting_thread.start()
-        except Exception as e:
-            logging.error(f"Error starting broadcasting: {e}")
-        # Start the animation
-        self.ani = animation.FuncAnimation(
-            self.fig,
-            self.plot_audio_signal,
-            interval=100,
-            blit=True,
-            cache_frame_data=False,
-            save_count=self.recorder.chunk,
-        )
-        # self.ani._resize_id = None
+        If a RecorderThread is not currently running and has finished its previous job, a new one is created.
+        A new BroadcasterThread is also created but not started.
+        When the RecorderThread starts, it emits a signal that triggers the start of the BroadcasterThread.
 
-    def stop(self):
-        # Stop recording
-        self.recorder.stop_recording()
+        The BroadcasterThread is responsible for broadcasting the audio data from the frames queue of the Recorder.
+        The RecorderThread is responsible for recording audio data and adding it to its frames queue.
+        """
 
-        # Stop the animation
-        if hasattr(self, "ani"):
-            self.ani.event_source.stop()
-            del self.ani
+        # Check if the RecorderThread is not currently running and has finished its previous job
+        if self.recorder_thread.isFinished() and self.broadcaster_thread.isFinished():
+            # Create a new RecorderThread
+            self.recorder_thread = RecorderThread(self.recorder)
+            # Create a new BroadcasterThread
+            self.broadcaster_thread = BroadcasterThread(
+                self.broadcaster, self.recorder.frames
+            )
+            # Connect the recording_started signal to the broadcaster thread's start method
+            # This ensures that the BroadcasterThread starts when the RecorderThread starts
+            self.recorder_thread.recording_started.connect(
+                self.broadcaster_thread.start
+            )
 
-        self.data_collector.data.clear()
+        # If the RecorderThread is not currently running, start it
+        if not self.recorder_thread.isRunning():
+            self.recorder_thread.start()
 
-    def close(self):
-        # Stop all recording and broadcasting threads
-        logging.info("Closed all threads and destroyed window")
-        if hasattr(self, "recording_thread") and self.recording_thread.is_alive():
-            self.recorder.stop_recording()
-            self.recording_thread.join()
-        if hasattr(self, "broadcasting_thread") and self.broadcasting_thread.is_alive():
-            self.broadcaster.stop_broadcasting()
-            self.broadcasting_thread.join()
-        self.data_collector.data.clear()
-        # Destroy the window
-        self.master.destroy()
+    def stop(self) -> None:
+        """
+        Stops recording and broadcasting audio data.
 
-    def plot_audio_signal(self, i=None):
-        # Convert the collected data to a numpy array
-        audio_data = np.frombuffer(b"".join(self.data_collector.data), dtype=np.int16)
-        N = self.recorder.rate
-        audio_data = audio_data[-N:]
-        time_data = np.array(
-            [
-                i * self.recorder.chunk / (self.recorder.rate * 1000)
-                for i in range(len(audio_data))
-            ]
-        )
+        If a RecorderThread is currently running, it stops the recording.
+        If a BroadcasterThread is currently running, it stops the broadcasting.
 
-        # Update the line data
-        self.line.set_data(time_data, audio_data)
+        Note: This method should be called when you want to stop recording and broadcasting audio data.
+        """
 
-        # Update the x-axis limits to accomodate the new data
-        self.ax.set_xlim(time_data[0], time_data[-1])
+        # If a BroadcasterThread is currently running, stop the broadcasting
+        if self.broadcaster_thread.isRunning():
+            self.broadcaster_thread.stop()
 
-        return (self.line,)
+        # If a RecorderThread is currently running, stop the recording
+        if self.recorder_thread.isRunning():
+            self.recorder_thread.stop()
+
+    def update_plot_from_data_collector(self) -> None:
+        """
+        Updates the plot with new audio data from the data collector.
+
+        This method first gets the data from the data collector.
+        Then, it converts the deque of numpy arrays to a single numpy array.
+        Finally, it updates the plot with this data.
+        """
+        if not self.recorder.recording:
+            return
+        # Initialize an empty numpy array to store the data
+        data = np.array([])
+
+        # Get the data from the data collector
+        for _ in range(100):
+            try:
+                new_data = self.data_collector.data.get_nowait()
+                # Append the new data to the existing data
+                data = np.append(data, new_data)
+            except queue.Empty:
+                break
+
+        # If there's no new data, use the existing data
+        if data.size == 0:
+            data = self.data
+
+        # Update the plot with this data
+        self.update_plot(data)
+
+    def update_plot(self, data: np.ndarray) -> None:
+        """
+        Updates the plot with new audio data.
+
+        Args:
+            data (np.ndarray): The new audio data.
+        """
+        # Check if the new data array is longer than the existing data array
+        if len(data) > len(self.data):
+            # If it is, truncate the new data array to the length of the existing data array
+            data = data[: len(self.data)]
+        elif len(data) < len(self.data):
+            # If it is shorter, pad the new data array with zeros to the length of the existing data array
+            data = np.pad(data, (0, len(self.data) - len(data)))
+
+        # Update the plot with the new data array
+        self.curve.setData(self.rel_time, data)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """
+        Handles the event that is triggered when the window is closed.
+
+        This method first stops the recording and broadcasting of audio data.
+        Then, it checks if the RecorderThread and BroadcasterThread are running. If they are, it stops them.
+        Finally, it accepts the close event to close the window.
+
+        Args:
+            event (QCloseEvent): The close event to handle.
+        """
+        # Stop the recording and broadcasting of audio data
+        self.stop()
+
+        # If the RecorderThread is running, stop it
+        if hasattr(self, "recorder_thread"):
+            self.recorder_thread.quit()
+            self.recorder_thread.wait()
+
+        # If the BroadcasterThread is running, stop it
+        if hasattr(self, "broadcaster_thread"):
+            self.broadcaster_thread.quit()
+            self.broadcaster_thread.wait()
+
+        # Accept the close event to close the window
+        event.accept()
 
 
-# Create the GUI
-root = tk.Tk()
-gui = AudioGUI(root)
-root.mainloop()
+if __name__ == "__main__":
+    app = QApplication([])
+    visualizer = Visualizer()
+    visualizer.show()
+    app.exec()
