@@ -1,6 +1,7 @@
 # Standard library imports
 import queue
 import threading
+import time
 from unittest.mock import MagicMock
 
 # Related third party imports
@@ -103,7 +104,7 @@ def test_broadcast() -> None:
     broadcast_thread.start()
 
     # Wait for the thread to finish
-    broadcast_thread.join()
+    broadcast_thread.join(timeout=1)
 
     # Check that the data_signal was emitted once
     assert len(spy) == 1
@@ -129,6 +130,29 @@ def test_stop_broadcasting() -> None:
 
     # Check that the broadcasting attribute is False
     assert broadcaster.broadcasting == False
+
+
+def test_broadcast_empty_queue() -> None:
+    """
+    Test the broadcast method of the Broadcaster class with an empty queue.
+
+    This test checks that if broadcast is called with an empty queue, it handles the queue.Empty exception correctly.
+    """
+    # Create a mock queue that raises a queue.Empty exception when get is called
+    data_queue = MagicMock()
+    data_queue.get.side_effect = queue.Empty
+
+    # Create a Broadcaster object
+    broadcaster = Broadcaster()
+
+    # Start the broadcast method in a separate thread
+    broadcast_thread = threading.Thread(target=broadcaster.broadcast, args=(data_queue,))
+    broadcast_thread.start()
+
+    # Check that the broadcasting attribute is False
+    assert broadcaster.broadcasting == False
+
+    broadcaster.broadcasting = False
 
 
 def test_receive_data() -> None:

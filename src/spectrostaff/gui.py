@@ -6,8 +6,8 @@ from typing import Optional
 
 # Related third party imports
 import numpy as np
-import pyqtgraph as pg
-from PyQt6.QtCore import QMutex, QThread, QTimer, pyqtSignal, pyqtSlot
+import pyqtgraph as pg  # type: ignore
+from PyQt6.QtCore import QMutex, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QWidget
 
@@ -216,10 +216,16 @@ class Visualizer(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Create an empty array of audio data
-        self.data = np.zeros(self.recorder.rate)
+        self.time_duration = 5  # seconds
+        self.samples = self.time_duration * self.recorder.rate  # samples
+        self.data = np.zeros(self.samples)
         self.circular_buffer_index = 0
         self.rel_time = np.arange(len(self.data)) / self.recorder.rate  # seconds
-        self.curve = self.plot_widget.plot(self.rel_time, self.data, pen=(255, 0, 0))
+        self.curve = self.plot_widget.plot(
+            self.rel_time,
+            self.data,
+            pen=pg.mkPen("m", width=0.25, style=Qt.PenStyle.SolidLine),
+        )
 
         # Create a QTimer
         self.timer = QTimer()
@@ -303,13 +309,13 @@ class Visualizer(QMainWindow):
                 break
 
         # Convert the combined data back to a numpy array
-        # Keep only the last 'self.recorder.rate' samples
-        self.data = np.concatenate(new_data_list, axis=None)[-self.recorder.rate :]
+        # Keep only the last 'self.samples' samples
+        self.data = np.concatenate(new_data_list, axis=None)[-self.samples :]
 
         # Update the plot with the combined data
         self.curve.setData(self.rel_time, self.data)
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def closeEvent(self, event: Optional[QCloseEvent]) -> None:
         """
         Handles the event that is triggered when the window is closed.
 
@@ -334,7 +340,8 @@ class Visualizer(QMainWindow):
             self.broadcaster_thread.wait()
 
         # Accept the close event to close the window
-        event.accept()
+        if event is not None:
+            event.accept()
 
 
 if __name__ == "__main__":

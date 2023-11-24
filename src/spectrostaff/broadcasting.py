@@ -86,8 +86,9 @@ class Broadcaster(QObject):
                 # and could raise an error or warning, even though the code is correct.
                 self.data_signal.emit(data)  # type: ignore
             except queue.Empty:
-                # If the queue is empty, break the loop
-                break
+                # Log a message and continue with the next iteration
+                logging.info("Data queue is currently empty. Waiting for data.")
+                continue
             except Exception as e:
                 # If any other error occurs, log it and continue
                 logging.error(f"Error broadcasting data: {e}")
