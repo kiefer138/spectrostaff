@@ -2,7 +2,7 @@
 import queue
 import threading
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Related third party imports
 import pytest
@@ -103,7 +103,7 @@ def test_broadcast() -> None:
     # Start the thread
     broadcast_thread.start()
 
-    # Wait for the thread to finish
+    # Wait for the thread to do its thing
     broadcast_thread.join(timeout=1)
 
     # Check that the data_signal was emitted once
@@ -111,6 +111,9 @@ def test_broadcast() -> None:
 
     # Check that the data_signal was emitted with the mock data
     assert np.array_equal(spy[0][0], mock_data)
+
+    # Stop broadcasting
+    broadcaster.broadcasting = False
 
 
 def test_stop_broadcasting() -> None:
@@ -132,27 +135,48 @@ def test_stop_broadcasting() -> None:
     assert broadcaster.broadcasting == False
 
 
-def test_broadcast_empty_queue() -> None:
+def test_broadcast_with_empty_queue():
     """
-    Test the broadcast method of the Broadcaster class with an empty queue.
-
-    This test checks that if broadcast is called with an empty queue, it handles the queue.Empty exception correctly.
+    Test the broadcast method of the Broadcaster class for the edge case when the queue is empty.
+    This test ensures that the broadcast method handles an empty queue correctly by checking the logged messages and the broadcasting flag.
     """
-    # Create a mock queue that raises a queue.Empty exception when get is called
-    data_queue = MagicMock()
-    data_queue.get.side_effect = queue.Empty
+    # Create a mock queue with qsize() always returning 0, simulating an empty queue
+    mock_queue: MagicMock = MagicMock(queue.Queue)
+    mock_queue.qsize.return_value = 0
+    mock_queue.get.side_effect = queue.Empty
 
-    # Create a Broadcaster object
-    broadcaster = Broadcaster()
+    # Create a broadcaster instance
+    broadcaster: Broadcaster = Broadcaster()
 
-    # Start the broadcast method in a separate thread
-    broadcast_thread = threading.Thread(target=broadcaster.broadcast, args=(data_queue,))
-    broadcast_thread.start()
+    # Create a thread to run the broadcast method
+    broadcast_thread = threading.Thread(
+        target=broadcaster.broadcast, args=(mock_queue,)
+    )
 
-    # Check that the broadcasting attribute is False
+    # Patch the logging module to prevent actual logging and to be able to check the logged messages
+    with patch("spectrostaff.broadcasting.logging") as mock_logging:
+        # Start the thread
+        broadcast_thread.start()
+
+        # Wait for a certain period of time (e.g., 1 second)
+        time.sleep(1)
+
+        # Stop the broadcast method by setting the broadcasting attribute to False
+        broadcaster.broadcasting = False
+
+        # Wait for the thread to finish
+        broadcast_thread.join()
+
+    # Assert that the warning about the queue being empty was logged
+    # The expected log message is "Data queue is currently empty. Waiting for data."
+    assert (
+        mock_logging.info.call_args_list[1][0][0]
+        == "Data queue is currently empty. Waiting for data."
+    )
+
+    # Assert that the broadcasting flag was set to False
+    # This is expected because the broadcast method should stop broadcasting when the queue is empty
     assert broadcaster.broadcasting == False
-
-    broadcaster.broadcasting = False
 
 
 def test_receive_data() -> None:
