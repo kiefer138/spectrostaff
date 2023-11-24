@@ -7,7 +7,7 @@ from typing import Optional
 # Related third party imports
 import numpy as np
 import pyqtgraph as pg  # type: ignore
-from PyQt6.QtCore import QMutex, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QMutex, Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QMutexLocker
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QWidget
 
@@ -160,8 +160,12 @@ class Visualizer(QMainWindow):
         # Create a DataCollector to collect and store audio data
         self.data_collector = DataCollector()
 
+        self.duration = 5  # seconds
+        self.rate = 44100  # samples per second
+        self.chunk = 2048  # samples per buffer
+
         # Create a Recorder to record audio data
-        self.recorder = Recorder()
+        self.recorder = Recorder(chunk=self.chunk, rate=self.rate)
 
         # Create a Broadcaster to broadcast audio data
         self.broadcaster = Broadcaster()
@@ -216,15 +220,13 @@ class Visualizer(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Create an empty array of audio data
-        self.time_duration = 5  # seconds
-        self.samples = self.time_duration * self.recorder.rate  # samples
-        self.data = np.zeros(self.samples)
+        self.data = np.zeros(self.duration * self.rate, dtype=np.int16)
         self.circular_buffer_index = 0
-        self.rel_time = np.arange(len(self.data)) / self.recorder.rate  # seconds
+        self.rel_time = np.arange(len(self.data)) / self.rate  # seconds
         self.curve = self.plot_widget.plot(
             self.rel_time,
             self.data,
-            pen=pg.mkPen("m", width=0.25, style=Qt.PenStyle.SolidLine),
+            pen=pg.mkPen("m", width=0.5, style=Qt.PenStyle.SolidLine),
         )
 
         # Create a QTimer
@@ -291,26 +293,26 @@ class Visualizer(QMainWindow):
         the method simply returns without making any changes.
         """
         # If the recorder is not recording, return without making any changes
-        if not self.recorder.recording:
-            return
-
-        # Convert existing data to a list
-        new_data_list = list(self.data)
+        with QMutexLocker(self.recorder.recording_mutex):
+            if not self.recorder.recording:
+                return
 
         # Retrieve and append new data from the data collector
-        while len(self.data_collector.data) > 0:
+        while True:
             try:
                 # Retrieve new data from the data collector
-                new_data = self.data_collector.data.popleft()
-                # Append new data to the list
-                new_data_list.append(new_data)
+                with QMutexLocker(self.data_collector.lock):
+                    if len(self.data_collector.data) > 0:
+                        new_data = self.data_collector.data.popleft()
+                    else:
+                        break
             except IndexError:
                 # If an IndexError occurs, break the loop
                 break
 
-        # Convert the combined data back to a numpy array
-        # Keep only the last 'self.samples' samples
-        self.data = np.concatenate(new_data_list, axis=None)[-self.samples :]
+            # Append new data to the existing data
+            self.data = np.roll(self.data, -len(new_data))
+            self.data[-len(new_data) :] = new_data
 
         # Update the plot with the combined data
         self.curve.setData(self.rel_time, self.data)

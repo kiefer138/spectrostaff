@@ -88,9 +88,8 @@ def test_start_recording(mock_pyaudio: MagicMock) -> None:
     # Wait for the thread to encounter the IOError
     time.sleep(1)
 
-    # Check that the audio stream was stopped and closed
+    # Check that the audio stream was stopped
     recorder.stream.stop_stream.assert_called()
-    recorder.stream.close.assert_called()
 
     # Check that recording is False
     assert recorder.recording == False
@@ -135,9 +134,8 @@ def test_stop_recording(mock_pyaudio: MagicMock) -> None:
     # Check that the recording flag is now False
     assert not recorder.recording
 
-    # Check that the audio stream was stopped and closed
+    # Check that the audio stream was stopped
     recorder.stream.stop_stream.assert_called()
-    recorder.stream.close.assert_called()
 
 
 def test_close() -> None:

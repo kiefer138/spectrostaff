@@ -4,13 +4,13 @@ import queue
 
 # Related third party imports
 import pyaudio
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QMutex, QMutexLocker, QObject
 
 # Local application/library specific imports
 from typing import Optional
 
 
-class Recorder:
+class Recorder(QObject):
     """
     The Recorder class is responsible for recording audio.
 
@@ -70,6 +70,9 @@ class Recorder:
         # Audio stream
         self.stream: Optional[pyaudio.Stream] = None
 
+        # Mutex for thread-safe access to self.recording
+        self.recording_mutex = QMutex()
+
     def start_recording(self) -> None:
         """
         Starts recording audio.
@@ -77,9 +80,11 @@ class Recorder:
         This method runs in a loop until the stop_event is set. In each iteration of the loop, it reads data from the audio stream and puts it into the frames queue.
         """
         # If already recording, log a message and return
-        if self.recording:
-            logging.info("Recording is already in progress")
-            return
+        with QMutexLocker(self.recording_mutex):
+            if self.recording:
+                logging.info("Recording is already in progress")
+                return
+            self.recording = True
 
         try:
             # Open the audio stream
@@ -91,6 +96,10 @@ class Recorder:
                 input=True,
                 frames_per_buffer=self.chunk,
             )
+
+            # If the stream is not None and not active, start it
+            if self.stream is not None:
+                self.stream.start_stream()
 
             # Log that recording has started
             logging.info("Recording started")
@@ -115,8 +124,8 @@ class Recorder:
         # We use a finally block to ensure that the stream is always closed, even if an error occurs. This is important to prevent resource leaks.
         finally:
             if self.stream is not None:
+                # self.stream.stop_stream()
                 self.stream.stop_stream()
-                self.stream.close()
             self.recording = False  # Set the recording flag to False
             logging.info("Recording stopped")
 
@@ -127,7 +136,8 @@ class Recorder:
         This method sets the stop_event, which signals the recording thread to stop.
         """
         # Set the stop event to signal the recording thread to stop
-        self.recording = False
+        with QMutexLocker(self.recording_mutex):
+            self.recording = False
 
         # Log that stop recording was requested
         logging.info("Stop recording requested")
