@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 # Related third party imports
 import pytest
 import numpy as np
-from _pytest.logging import LogCaptureFixture
 from PyQt6.QtTest import QSignalSpy
 
 # Local application/library specific imports
