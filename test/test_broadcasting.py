@@ -177,6 +177,12 @@ def test_broadcast_with_empty_queue():
     # This is expected because the broadcast method should stop broadcasting when the queue is empty
     assert broadcaster.broadcasting == False
 
+def test_multiple_listeners() -> None:
+    """
+    Test the broadcast method of the Broadcaster class for the case when 
+    there are multiple listeners
+    """
+
 
 def test_receive_data() -> None:
     """
