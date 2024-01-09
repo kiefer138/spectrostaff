@@ -4,6 +4,12 @@ develop:
 	@poetry install
 	@echo "Done."
 
+.PHONY: test
+test:
+	@echo "Running tests..."
+	@poetry run pytest
+	@echo "Done."
+
 .PHONY: clean
 clean:
 	@echo "Cleaning project..."
