@@ -42,3 +42,6 @@ venv.bak/
 # mypy artifacts
 .mypy_cache/
 *.mypy_cache/
+
+# Mac OS files
+.DS_Store
