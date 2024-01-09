@@ -1,58 +1,26 @@
 # Standard library imports
 from __future__ import annotations
 import queue
-from collections import deque
 from typing import Optional
 
 # Related third party imports
 import numpy as np
 import pyqtgraph as pg  # type: ignore
-from PyQt6.QtCore import QMutex, Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QMutexLocker
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QMutexLocker
 from PyQt6.QtGui import QCloseEvent
-from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QApplication,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+    QSplitter,
+)
 
 # Local application/library specific imports
+from spectrostaff.data import DataCollector, FFTDataCollector
 from spectrostaff.broadcasting import Broadcaster, Listener
 from spectrostaff.recorder import Recorder
-
-
-class DataCollector:
-    """
-    A class that collects and stores a fixed amount of data in a thread-safe manner.
-
-    Attributes:
-        data (deque): A deque to store the collected data.
-        lock (QMutex): A mutex to ensure thread-safety when modifying the deque.
-    """
-
-    def __init__(self, max_length: int = 1024):
-        """
-        Initializes a new DataCollector object.
-
-        Args:
-            max_length (int, optional): The maximum size of the deque. Defaults to 100.
-        """
-        # Initialize a deque with a fixed maximum size
-        self.data: deque[np.ndarray] = deque(maxlen=max_length)
-        # Initialize a mutex for thread-safety
-        self.lock = QMutex()
-
-    def data_callback(self, data: np.ndarray) -> None:
-        """
-        Adds new data to the deque in a thread-safe manner.
-
-        Args:
-            data (np.ndarray): The data to add.
-        """
-        # Acquire the lock before modifying the deque
-        self.lock.lock()
-        try:
-            # Add the new data to the deque
-            # If the deque is full, the oldest item is automatically removed
-            self.data.append(data)
-        finally:
-            # Always release the lock, even if an error occurred
-            self.lock.unlock()
 
 
 class RecorderThread(QThread):
@@ -160,7 +128,10 @@ class Visualizer(QMainWindow):
         # Create a DataCollector to collect and store audio data
         self.data_collector = DataCollector()
 
-        self.duration = 5  # seconds
+        # Create a DataCollector to collect and store FFT data
+        self.fft_data_collector = FFTDataCollector()
+
+        self.duration = 10  # seconds
         self.rate = 44100  # samples per second
         self.chunk = 2048  # samples per buffer
 
@@ -170,9 +141,13 @@ class Visualizer(QMainWindow):
         # Create a Broadcaster to broadcast audio data
         self.broadcaster = Broadcaster()
 
-        # Create a Listener to listen for and process audio data
+        # Create a Listener to listen for and store audio data
         self.listener = Listener(self.data_collector.data_callback)
         self.broadcaster.register(self.listener)
+
+        # Create a Listener to listen for and store FFT data
+        self.fft_listener = Listener(self.fft_data_collector.data_callback)
+        self.broadcaster.register(self.fft_listener)
 
         # Create a RecorderThread and a BroadcasterThread
         self.recorder_thread = RecorderThread(self.recorder)
@@ -185,6 +160,9 @@ class Visualizer(QMainWindow):
 
         # Connect the data callback to the listener
         self.broadcaster.data_signal.connect(self.listener.receive_data)
+
+        # Connect the data callback to the FFT listener
+        self.broadcaster.data_signal.connect(self.fft_listener.receive_data)
 
         # Create a PlotWidget to display the audio data
         self.plot_widget = pg.PlotWidget()
@@ -202,15 +180,32 @@ class Visualizer(QMainWindow):
 
         self.setCentralWidget(self.plot_widget)
 
+        self.fft_graphics_layout_widget = pg.GraphicsLayoutWidget()
+
+        self.fft_plot_item = pg.PlotItem()
+        self.fft_plot_item.setLabels(left="Frequency (Hz)", bottom="Time (s)")
+
+        self.fft_image_item = pg.ImageItem()
+        self.fft_plot_item.addItem(self.fft_image_item)
+
+        self.fft_graphics_layout_widget.addItem(self.fft_plot_item)
+
         # Create start and stop buttons
         self.start_button = QPushButton("Start")
         self.start_button.clicked.connect(self.start)
         self.stop_button = QPushButton("Stop")
         self.stop_button.clicked.connect(self.stop)
 
+        # Create a QSplitter to display the plot widget and the buttons
+        splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Add the plot widget and the buttons to the splitter
+        splitter.addWidget(self.fft_graphics_layout_widget)
+        splitter.addWidget(self.plot_widget)
+
         # Create a layout and add the plot widget and buttons
         layout = QVBoxLayout()
-        layout.addWidget(self.plot_widget)
+        layout.addWidget(splitter)
         layout.addWidget(self.start_button)
         layout.addWidget(self.stop_button)
 
@@ -228,6 +223,10 @@ class Visualizer(QMainWindow):
             self.data,
             pen=pg.mkPen("m", width=0.5, style=Qt.PenStyle.SolidLine),
         )
+        # Create an empty array of FFT data
+        self.spectrogram = np.zeros(
+            (self.rate // self.chunk * self.duration, self.chunk // 2 + 1)
+        )
 
         # Create a QTimer
         self.timer = QTimer()
@@ -235,6 +234,10 @@ class Visualizer(QMainWindow):
         self.timer.timeout.connect(self.update_plot)
         # Start the timer with an interval of 100 milliseconds
         self.timer.start(100)
+
+        self.fft_timer = QTimer()
+        self.fft_timer.timeout.connect(self.update_fft_plot)
+        self.fft_timer.start(100)  # Update every 100 ms
 
     def start(self) -> None:
         """
@@ -316,6 +319,43 @@ class Visualizer(QMainWindow):
 
         # Update the plot with the combined data
         self.curve.setData(self.rel_time, self.data)
+
+    def update_fft_plot(self) -> None:
+        """
+        Updates the FFT plot with the latest FFT data from the FFT data collector.
+
+        This method retrieves new FFT data from the FFT data collector, and then updates the FFT plot with the new data.
+        If the recorder is not currently recording, the method simply returns without making any changes.
+        """
+        # If the recorder is not recording, return without making any changes
+        with QMutexLocker(self.recorder.recording_mutex):
+            if not self.recorder.recording:
+                return
+
+        # Retrieve and append new FFT data from the FFT data collector
+        while True:
+            try:
+                # Retrieve new FFT data from the FFT data collector
+                with QMutexLocker(self.fft_data_collector.lock):
+                    if len(self.fft_data_collector.data) > 0:
+                        new_fft_data = self.fft_data_collector.data.popleft()
+                    else:
+                        break
+            except IndexError:
+                # If an IndexError occurs, break the loop
+                break
+
+            self.spectrogram = np.roll(self.spectrogram, -1, axis=0)
+            self.spectrogram[-1, :] = np.abs(new_fft_data[: self.chunk // 2 + 1])
+
+        # Calculate the frequency for each FFT bin
+        freq_scale = np.linspace(0, self.rate / 2, self.chunk // 2 + 1)
+
+        # Update the ImageView widget with the spectrogram
+        self.fft_image_item.setImage(
+            20 * np.log10(self.spectrogram + 1e-6),  # Convert to dB
+            scale=(1, freq_scale[1] - freq_scale[0])  # Set the scale for the y-axis
+        )
 
     def closeEvent(self, event: Optional[QCloseEvent]) -> None:
         """
