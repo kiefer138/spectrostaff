@@ -21,4 +21,9 @@ bootstrap:
 clean:
 	@echo "Cleaning project..."
 	@rm -rf $(PYTHONENV)
-	@echo "Done."
+	@rm -rf .mypy_cache
+	@rm -rf .pytest_cache
+	@find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
+	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +
+	@rm -rf dist
+	@echo "Done.""Done."

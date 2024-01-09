@@ -23,6 +23,9 @@ class DataCollector:
         Args:
             max_length (int, optional): The maximum size of the deque. Defaults to 100.
         """
+        # Check that max_length is a positive integer
+        if not isinstance(max_length, int) or max_length <= 0:
+            raise ValueError("max_length must be a positive integer")
         # Initialize a deque with a fixed maximum size
         self.data: deque[np.ndarray] = deque(maxlen=max_length)
         # Initialize a mutex for thread-safety
@@ -38,6 +41,9 @@ class DataCollector:
         # Acquire the lock before modifying the deque
         self.lock.lock()
         try:
+            # Check that the data is a numpy array
+            if not isinstance(data, np.ndarray):
+                raise ValueError("data must be a numpy array")
             # Add the new data to the deque
             # If the deque is full, the oldest item is automatically removed
             self.data.append(data)
@@ -65,6 +71,9 @@ class FFTDataCollector(DataCollector):
             chunk (int, optional): The size of each chunk of data. Defaults to 4410.
         """
         super().__init__(max_length=max_length)
+        # Check that rate and chunk are greater than zero
+        if rate <= 0 or chunk <= 0:
+            raise ValueError("rate and chunk must be greater than zero")
         # Calculate the frequency bins for the FFT data
         self.freqs: np.ndarray = np.fft.fftfreq(chunk, 1 / rate)
 
@@ -78,6 +87,9 @@ class FFTDataCollector(DataCollector):
         # Acquire the lock before modifying the deque
         self.lock.lock()
         try:
+            # Check that the data is a numpy array
+            if not isinstance(data, np.ndarray):
+                raise ValueError("data must be a numpy array")
             # Calculate FFT of the incoming data
             fft_data = fft(data)
             # Add the new FFT data to the deque

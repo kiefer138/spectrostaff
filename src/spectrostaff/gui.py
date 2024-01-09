@@ -161,6 +161,9 @@ class Visualizer(QMainWindow):
         # Connect the data callback to the listener
         self.broadcaster.data_signal.connect(self.listener.receive_data)
 
+        # Connect the data callback to the FFT listener
+        self.broadcaster.data_signal.connect(self.fft_listener.receive_data)
+
         # Create a PlotWidget to display the audio data
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setLabel("left", "Amplitude")
@@ -343,12 +346,16 @@ class Visualizer(QMainWindow):
                 break
 
             self.spectrogram = np.roll(self.spectrogram, -1, axis=0)
-            self.spectrogram[-1, :] = np.abs(new_fft_data)
+            self.spectrogram[-1, :] = np.abs(new_fft_data[: self.chunk // 2 + 1])
+
+        # Calculate the frequency for each FFT bin
+        freq_scale = np.linspace(0, self.rate / 2, self.chunk // 2 + 1)
 
         # Update the ImageView widget with the spectrogram
         self.fft_image_item.setImage(
-            20 * np.log10(self.spectrogram + 1e-6)
-        )  # Convert to dB
+            20 * np.log10(self.spectrogram + 1e-6),  # Convert to dB
+            scale=(1, freq_scale[1] - freq_scale[0])  # Set the scale for the y-axis
+        )
 
     def closeEvent(self, event: Optional[QCloseEvent]) -> None:
         """
