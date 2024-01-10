@@ -45,3 +45,6 @@ venv.bak/
 
 # Mac OS files
 .DS_Store
+
+# Requirements file
+requirements.txt
