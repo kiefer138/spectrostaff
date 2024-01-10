@@ -6,7 +6,7 @@ import pytest
 from PyQt6.QtCore import QThread
 
 # Local application/library specific imports
-from spectrostaff.gui import RecorderThread
+from spectrostaff.gui import RecorderThread # type: ignore
 
 
 def test_recorder_thread():

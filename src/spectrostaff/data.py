@@ -3,7 +3,7 @@ from collections import deque
 
 # Related Third-party imports
 import numpy as np
-from scipy.fft import fft
+from scipy.fft import fft # type: ignore
 from PyQt6.QtCore import QMutex
 
 
