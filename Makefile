@@ -1,22 +1,48 @@
-.PHONY: develop
-develop:
+# Declare phony targets
+.PHONY: install typecheck typecheck-test test build clean help
+
+# Install project in development mode
+install:
 	@echo "Installing project in development mode..."
 	@poetry install
-	@echo "Done."
 
-.PHONY: test
-test:
-	@echo "Running tests..."
+# Run type checks on source code
+typecheck:
+	@echo "Running type checks..."
+	@poetry run mypy ./src/
+
+# Run type checks on tests
+typecheck-test:
+	@echo "Running type checks on tests..."
+	@poetry run mypy ./test/
+
+# Run unit tests
+unit-test:
+	@echo "Running unit tests..."
 	@poetry run pytest
-	@echo "Done."
 
-.PHONY: clean
+# Run all tests
+test: typecheck typecheck-test unit-test
+
+# Build project
+build:
+	@echo "Building project..."
+	@poetry build
+
+# Clean project
 clean:
 	@echo "Cleaning project..."
-	@rm -rf venv
-	@rm -rf .mypy_cache
-	@rm -rf .pytest_cache
+	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt
 	@find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
 	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +
-	@rm -rf dist
-	@echo "Done."
+
+# Display help information
+help:
+	@echo "Targets:"
+	@echo "  install: Set up dev mode & install dependencies from pyproject.toml."
+	@echo "  typecheck: Run mypy on source code."
+	@echo "  typecheck-test: Run mypy on tests."
+	@echo "  unit-test: Run pytest."
+	@echo "  test: Run all tests."
+	@echo "  build: Build package with poetry."
+	@echo "  clean: Remove temp files & directories."
