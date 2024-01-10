@@ -10,7 +10,7 @@ import numpy as np
 from PyQt6.QtTest import QSignalSpy
 
 # Local application/library specific imports
-from spectrostaff.broadcasting import Broadcaster, Listener
+from spectrostaff.broadcasting import Broadcaster, Listener # type: ignore
 
 
 def test_broadcaster_initialization() -> None:
@@ -90,7 +90,7 @@ def test_broadcast() -> None:
     spy = QSignalSpy(broadcaster.data_signal)
 
     # Create a queue and put some mock data in it
-    data_queue = queue.Queue()
+    data_queue: queue.Queue = queue.Queue()
     mock_data = np.array([1, 2, 3, 4, 5], dtype=np.int16)
     data_queue.put(mock_data.tobytes())
 

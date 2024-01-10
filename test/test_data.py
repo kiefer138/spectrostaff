@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 # Local application/library specific imports
-from spectrostaff.data import DataCollector, FFTDataCollector
+from spectrostaff.data import DataCollector, FFTDataCollector # type: ignore
 
 
 def test_data_collector_initialization():

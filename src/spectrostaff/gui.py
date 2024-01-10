@@ -354,7 +354,7 @@ class Visualizer(QMainWindow):
         # Update the ImageView widget with the spectrogram
         self.fft_image_item.setImage(
             20 * np.log10(self.spectrogram + 1e-6),  # Convert to dB
-            scale=(1, freq_scale[1] - freq_scale[0])  # Set the scale for the y-axis
+            scale=(1, freq_scale[1] - freq_scale[0]),  # Set the scale for the y-axis
         )
 
     def closeEvent(self, event: Optional[QCloseEvent]) -> None:
@@ -386,8 +386,12 @@ class Visualizer(QMainWindow):
             event.accept()
 
 
-if __name__ == "__main__":
+def main():
     app = QApplication([])
     visualizer = Visualizer()
     visualizer.show()
     app.exec()
+
+
+if __name__ == "__main__":
+    main()

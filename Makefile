@@ -1,29 +1,48 @@
-PROJ_BASE=$(shell pwd)
-PYTHONVER=python3.11
-PYTHONENV=$(PROJ_BASE)/venv
-VENVPYTHON=$(PYTHONENV)/bin/$(PYTHONVER)
+# Declare phony targets
+.PHONY: install typecheck typecheck-test test build clean help
 
-.PHONY: develop
-develop: bootstrap
+# Install project in development mode
+install:
 	@echo "Installing project in development mode..."
-	@$(VENVPYTHON) -m pip install -e .
-	@echo "Done."
+	@poetry install
 
-.PHONY: bootstrap
-bootstrap:
-	@echo "Bootstrapping project..."
-	@$(PYTHONVER) -m venv $(PYTHONENV)
-	@$(VENVPYTHON) -m pip install --upgrade pip
-	@$(VENVPYTHON) -m pip install -r requirements.txt
-	@echo "Done."
+# Run type checks on source code
+typecheck:
+	@echo "Running type checks..."
+	@poetry run mypy ./src/
 
-.PHONY: clean
+# Run type checks on tests
+typecheck-test:
+	@echo "Running type checks on tests..."
+	@poetry run mypy ./test/
+
+# Run unit tests
+unit-test:
+	@echo "Running unit tests..."
+	@poetry run pytest
+
+# Run all tests
+test: typecheck typecheck-test unit-test
+
+# Build project
+build:
+	@echo "Building project..."
+	@poetry build
+
+# Clean project
 clean:
 	@echo "Cleaning project..."
-	@rm -rf $(PYTHONENV)
-	@rm -rf .mypy_cache
-	@rm -rf .pytest_cache
+	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt
 	@find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
 	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +
-	@rm -rf dist
-	@echo "Done.""Done."
+
+# Display help information
+help:
+	@echo "Targets:"
+	@echo "  install: Set up dev mode & install dependencies from pyproject.toml."
+	@echo "  typecheck: Run mypy on source code."
+	@echo "  typecheck-test: Run mypy on tests."
+	@echo "  unit-test: Run pytest."
+	@echo "  test: Run all tests."
+	@echo "  build: Build package with poetry."
+	@echo "  clean: Remove temp files & directories."
