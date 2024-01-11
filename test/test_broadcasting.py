@@ -140,12 +140,12 @@ def test_broadcast_with_empty_queue():
     This test ensures that the broadcast method handles an empty queue correctly by checking the logged messages and the broadcasting flag.
     """
     # Create a mock queue with qsize() always returning 0, simulating an empty queue
-    mock_queue: MagicMock = MagicMock(queue.Queue)
+    mock_queue = MagicMock(queue.Queue)
     mock_queue.qsize.return_value = 0
     mock_queue.get.side_effect = queue.Empty
 
     # Create a broadcaster instance
-    broadcaster: Broadcaster = Broadcaster()
+    broadcaster = Broadcaster()
 
     # Create a thread to run the broadcast method
     broadcast_thread = threading.Thread(
