@@ -10,7 +10,7 @@ import numpy as np
 from PyQt6.QtTest import QSignalSpy
 
 # Local application/library specific imports
-from spectrostaff.broadcasting import Broadcaster, Listener # type: ignore
+from spectrostaff.broadcasting import Broadcaster, Listener  # type: ignore
 
 
 def test_broadcaster_initialization() -> None:
@@ -177,9 +177,10 @@ def test_broadcast_with_empty_queue():
     # This is expected because the broadcast method should stop broadcasting when the queue is empty
     assert broadcaster.broadcasting == False
 
+
 def test_multiple_listeners() -> None:
     """
-    Test the broadcast method of the Broadcaster class for the case when 
+    Test the broadcast method of the Broadcaster class for the case when
     there are multiple listeners
     """
 

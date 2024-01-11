@@ -8,7 +8,7 @@ import pytest
 import pyaudio
 
 # Local application/library specific imports
-from spectrostaff.recorder import Recorder # type: ignore
+from spectrostaff.recorder import Recorder  # type: ignore
 
 
 def test_recorder_initialization() -> None:

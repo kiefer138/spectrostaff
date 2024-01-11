@@ -15,7 +15,6 @@ author = "TEv"
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.inheritance_diagram",
 ]
 
 templates_path = ["_templates"]
