@@ -8,7 +8,7 @@
 
 project = "spectrostaff"
 copyright = "2024, TEv"
-author = "TEv"
+author = "Tyler Evans"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
