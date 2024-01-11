@@ -20,6 +20,7 @@ pytest = "^7.4.3"
 mypy = "^1.7.1"
 types-pyaudio = "^0.2.16.7"
 sphinx = "^7.2.6"
+black = "^23.12.1"
 
 [build-system]
 requires = ["poetry-core"]
