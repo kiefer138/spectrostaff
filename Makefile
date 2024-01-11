@@ -1,5 +1,5 @@
 # Declare phony targets
-.PHONY: install typecheck typecheck-test test build clean help
+.PHONY: install typecheck typecheck-test test build clean docs view-docs help
 
 # Install project in development mode
 install:
@@ -29,10 +29,20 @@ build:
 	@echo "Building project..."
 	@poetry build
 
+# Generate documentation
+docs:
+	@echo "Generating documentation..."
+	@cd docs && poetry run make html
+
+# Open documentation in a web browser
+view-docs:
+	@echo "Opening documentation..."
+	@open docs/build/html/index.html
+
 # Clean project
 clean:
 	@echo "Cleaning project..."
-	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt
+	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt docs/build/*
 	@find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
 	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +
 
@@ -45,4 +55,6 @@ help:
 	@echo "  unit-test: Run pytest."
 	@echo "  test: Run all tests."
 	@echo "  build: Build package with poetry."
+	@echo "  docs: Generate documentation with Sphinx."
+	@echo "  view-docs: Open documentation in a web browser."
 	@echo "  clean: Remove temp files & directories."
