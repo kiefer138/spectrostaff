@@ -42,7 +42,7 @@ view-docs:
 # Clean project
 clean:
 	@echo "Cleaning project..."
-	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt docs/build/*
+	@rm -rf venv .venv .mypy_cache .pytest_cache dist dist requirements.txt docs/build
 	@find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
 	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +
 
