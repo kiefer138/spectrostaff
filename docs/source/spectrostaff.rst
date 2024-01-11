@@ -1,45 +1,34 @@
 spectrostaff package
 ====================
 
-Submodules
-----------
-
-spectrostaff.broadcasting module
---------------------------------
+spectrostaff.broadcasting 
+-------------------------
 
 .. automodule:: spectrostaff.broadcasting
    :members:
    :undoc-members:
    :show-inheritance:
 
-spectrostaff.data module
-------------------------
+spectrostaff.data 
+-----------------
 
 .. automodule:: spectrostaff.data
    :members:
    :undoc-members:
    :show-inheritance:
 
-spectrostaff.gui module
------------------------
+spectrostaff.gui
+----------------
 
 .. automodule:: spectrostaff.gui
    :members:
    :undoc-members:
    :show-inheritance:
 
-spectrostaff.recorder module
-----------------------------
+spectrostaff.recorder
+---------------------
 
 .. automodule:: spectrostaff.recorder
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: spectrostaff
    :members:
    :undoc-members:
    :show-inheritance:

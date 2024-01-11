@@ -10,6 +10,8 @@ Welcome to spectrostaff's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   spectrostaff
+
 Indices and tables
 ==================
 
