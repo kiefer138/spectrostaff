@@ -2,7 +2,7 @@
 
 spectrostaff is an application for visualizing music
 
-## getting Started
+## getting started
 
 this guide will help you set up your development environment for the `spectrostaff` project
 
