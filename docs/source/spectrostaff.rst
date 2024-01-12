@@ -1,5 +1,7 @@
-spectrostaff package
-====================
+spectrostaff
+============
+
+recording, broadcasting, analyzing, and visualizing audio
 
 spectrostaff.broadcasting 
 -------------------------
