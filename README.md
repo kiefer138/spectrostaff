@@ -1,78 +1,90 @@
-# Spectrostaff
+# overview
 
-An application for visualizing music.
+spectrostaff is an application for visualizing music
 
-## Getting Started
+## getting started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+this guide will help you set up your development environment for the `spectrostaff` project
 
-### Prerequisites
+### prerequisites
 
-What things you need to install the software and how to install them:
+ensure you have the following installed on your machine:
 
 - Git
 - Make
 - Poetry
 - Python 3.11
 
-### Installing
+### installing
 
-A step by step series of examples that tell you how to get a development environment running:
-
-1. Clone the repository:
+1. **clone the repository**: use the following command to clone the `develop` branch of the `spectrostaff` repository:
 
     ```bash
-    git clone https://github.com/username/repo.git
+    git clone -b develop https://github.com/kiefer138/spectrostaff
     ```
 
-2. Navigate to the project directory:
+2. **navigate to the project directory**:
 
     ```bash
-    cd repo
+    cd spectrostaff
     ```
 
-3. Install the project in development mode:
+3. **install the project in development mode**: this will install all the dependencies you need for development
 
     ```bash
     make install
     ```
 
-## Running the tests
+## documentation
 
-Run the tests using the Makefile:
+build the documentation:
+
+    ```bash
+    make docs 
+    ```
+
+view the documentation:
+
+    ```bash
+    make view-docs
+    ```
+
+## running the tests
+
+run the tests:
 
     ```bash
     make test
     ```
 
-## Building the project
+## building the project
 
-Build the project using the Makefile:
+build the project using the following command:
 
     ```bash
     make build
     ```
 
-## Cleaning the project
+## cleaning the project
 
-Clean the project using the Makefile:
+clean the project using the following command:
 
     ```bash
     make clean
     ```
 
-## Help
+## help
 
-Display help information with the Makefile:
+display help information with the following command:
 
     ```bash
     make help
     ```
 
-## Authors
+## authors
 
-- Your Name
+- Tyler Evans
 
-## License
+## license
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+this project is licensed under the [MIT License](https://opensource.org/licenses/MIT)

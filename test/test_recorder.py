@@ -1,6 +1,7 @@
 # Standard library imports
 import threading
 import time
+from typing import cast
 from unittest.mock import patch, MagicMock
 
 # Related third party imports
@@ -8,7 +9,7 @@ import pytest
 import pyaudio
 
 # Local application/library specific imports
-from spectrostaff.recorder import Recorder # type: ignore
+from spectrostaff.recorder import Recorder  # type: ignore
 
 
 def test_recorder_initialization() -> None:
@@ -62,6 +63,9 @@ def test_start_recording(mock_pyaudio: MagicMock) -> None:
 
     # Create a Recorder object
     recorder = Recorder()
+
+    # Cast recorder.stream to MagicMock for mypy
+    recorder.stream = cast(MagicMock, recorder.stream)
 
     # Start recording in a separate thread
     recording_thread = threading.Thread(target=recorder.start_recording)

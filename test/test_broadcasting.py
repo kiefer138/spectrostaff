@@ -10,7 +10,7 @@ import numpy as np
 from PyQt6.QtTest import QSignalSpy
 
 # Local application/library specific imports
-from spectrostaff.broadcasting import Broadcaster, Listener # type: ignore
+from spectrostaff.broadcasting import Broadcaster, Listener  # type: ignore
 
 
 def test_broadcaster_initialization() -> None:
@@ -140,12 +140,12 @@ def test_broadcast_with_empty_queue():
     This test ensures that the broadcast method handles an empty queue correctly by checking the logged messages and the broadcasting flag.
     """
     # Create a mock queue with qsize() always returning 0, simulating an empty queue
-    mock_queue: MagicMock = MagicMock(queue.Queue)
+    mock_queue = MagicMock(queue.Queue)
     mock_queue.qsize.return_value = 0
     mock_queue.get.side_effect = queue.Empty
 
     # Create a broadcaster instance
-    broadcaster: Broadcaster = Broadcaster()
+    broadcaster = Broadcaster()
 
     # Create a thread to run the broadcast method
     broadcast_thread = threading.Thread(
@@ -177,9 +177,10 @@ def test_broadcast_with_empty_queue():
     # This is expected because the broadcast method should stop broadcasting when the queue is empty
     assert broadcaster.broadcasting == False
 
+
 def test_multiple_listeners() -> None:
     """
-    Test the broadcast method of the Broadcaster class for the case when 
+    Test the broadcast method of the Broadcaster class for the case when
     there are multiple listeners
     """
 
