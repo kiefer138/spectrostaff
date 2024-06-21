@@ -46,6 +46,13 @@ class DataCollector:
                 raise ValueError("data must be a numpy array")
             # Add the new data to the deque
             # If the deque is full, the oldest item is automatically removed
+
+            # Calculate the maximum value of int16
+            max_int16 = np.iinfo(np.int16).max  # This is equivalent to 32767
+
+            # Normalize int16 audio to float in range [-1, 1]
+            data = data.astype(np.float32) / max_int16
+
             self.data.append(data)
         finally:
             # Always release the lock, even if an error occurred
@@ -90,6 +97,13 @@ class FFTDataCollector(DataCollector):
             # Check that the data is a numpy array
             if not isinstance(data, np.ndarray):
                 raise ValueError("data must be a numpy array")
+
+            # Calculate the maximum value of int16
+            max_int16 = np.iinfo(np.int16).max  # This is equivalent to 32767
+
+            # Normalize int16 audio to float in range [-1, 1]
+            data = data.astype(np.float32) / max_int16
+
             # Calculate FFT of the incoming data
             fft_data = fft(data)
             # Add the new FFT data to the deque
