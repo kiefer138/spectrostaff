@@ -1,5 +1,6 @@
 # Standard library imports
 from __future__ import annotations
+import logging
 import queue
 from typing import Optional
 
@@ -7,7 +8,7 @@ from typing import Optional
 import numpy as np
 import pyqtgraph as pg  # type: ignore
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QMutexLocker
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QCloseEvent, QTransform
 from PyQt6.QtWidgets import (
     QMainWindow,
     QApplication,
@@ -176,7 +177,7 @@ class Visualizer(QMainWindow):
         plot_item.showGrid(x=True, y=True)
 
         # Fix the y-axis range for a typical int16 audio signal
-        plot_item.setRange(yRange=[-32768, 32767])
+        plot_item.setRange(yRange=[-1, 1]) # [-32768, 32767])
 
         self.setCentralWidget(self.plot_widget)
 
@@ -185,8 +186,14 @@ class Visualizer(QMainWindow):
         self.fft_plot_item = pg.PlotItem()
         self.fft_plot_item.setLabels(left="Frequency (Hz)", bottom="Time (s)")
 
+        self.fft_plot_item.showGrid(x=True, y=True)
+
         self.fft_image_item = pg.ImageItem()
         self.fft_plot_item.addItem(self.fft_image_item)
+
+        tr = QTransform()
+        tr.scale(self.chunk / self.rate, 1 / (self.chunk / self.rate))
+        self.fft_image_item.setTransform(tr)
 
         self.fft_graphics_layout_widget.addItem(self.fft_plot_item)
 
@@ -215,7 +222,7 @@ class Visualizer(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Create an empty array of audio data
-        self.data = np.zeros(self.duration * self.rate, dtype=np.int16)
+        self.data = np.zeros(self.duration * self.rate, dtype=np.float32)
         self.circular_buffer_index = 0
         self.rel_time = np.arange(len(self.data)) / self.rate  # seconds
         self.curve = self.plot_widget.plot(
@@ -348,13 +355,9 @@ class Visualizer(QMainWindow):
             self.spectrogram = np.roll(self.spectrogram, -1, axis=0)
             self.spectrogram[-1, :] = np.abs(new_fft_data[: self.chunk // 2 + 1])
 
-        # Calculate the frequency for each FFT bin
-        freq_scale = np.linspace(0, self.rate / 2, self.chunk // 2 + 1)
-
         # Update the ImageView widget with the spectrogram
         self.fft_image_item.setImage(
             20 * np.log10(self.spectrogram + 1e-6),  # Convert to dB
-            scale=(1, freq_scale[1] - freq_scale[0]),  # Set the scale for the y-axis
         )
 
     def closeEvent(self, event: Optional[QCloseEvent]) -> None:
@@ -384,6 +387,11 @@ class Visualizer(QMainWindow):
         # Accept the close event to close the window
         if event is not None:
             event.accept()
+
+
+def frequency_to_semitone(freq: float) -> float:
+    A4_freq = 440.0  # Hz
+    return 12 * np.log2(freq / A4_freq)
 
 
 def main():
